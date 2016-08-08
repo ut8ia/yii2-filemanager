@@ -1,0 +1,27 @@
+{
+    "name": "ut8ia/yii2-filemanager",
+    "description": "smart filemanager module for yii2",
+    "type": "yii2-extension",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Eugene Anufriev",
+            "email": "eugene.anufriev@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable" : true,
+    "require": {
+        "yiisoft/yii2": "*",
+        "yiisoft/yii2-imagine": "*",
+        "pendalf89/yii2-tinymce": "*",
+        "kartik-v/yii2-widget-alert": "*",
+        "kartik-v/yii2-widget-select2": "*",
+        "2amigos/yii2-file-upload-widget": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "ut8ia\\filemanager\\": ""
+        }
+    }
+}
