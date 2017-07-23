@@ -13,6 +13,7 @@ use yii\helpers\Inflector;
 use ut8ia\filemanager\Module;
 use ut8ia\filemanager\models\Owners;
 use Imagine\Image\ImageInterface;
+use GuzzleHttp\Client;
 
 /**
  * This is the model class for table "filemanager_mediafile".
@@ -46,7 +47,7 @@ class Mediafile extends ActiveRecord
      */
     public function init()
     {
-        $linkTags = function ($event) {
+        $linkTags = function($event) {
             if ($this->tagIds === null) {
                 return;
             }
@@ -159,7 +160,8 @@ class Mediafile extends ActiveRecord
     /**
      * @return \yii\db\ActiveQuery
      */
-    public function getTags() {
+    public function getTags()
+    {
         return $this->hasMany(Tag::className(), ['id' => 'tag_id'])
             ->viaTable('filemanager_mediafile_tag', ['mediafile_id' => 'id']);
     }
@@ -167,8 +169,9 @@ class Mediafile extends ActiveRecord
     /**
      * @return array|null
      */
-    public function getTagIds() {
-        return $this->tagIds !== null ? $this->tagIds : array_map(function ($tag) {
+    public function getTagIds()
+    {
+        return $this->tagIds !== null ? $this->tagIds : array_map(function($tag) {
             return $tag->id;
         }, $this->tags);
     }
@@ -176,7 +179,8 @@ class Mediafile extends ActiveRecord
     /**
      * @param $value
      */
-    public function setTagIds($value) {
+    public function setTagIds($value)
+    {
         $this->tagIds = $value;
     }
 
@@ -194,17 +198,17 @@ class Mediafile extends ActiveRecord
         }
     }
 
-	public function afterDelete()
-	{
-		parent::afterDelete();
-		Tag::removeUnusedTags();
-	}
+    public function afterDelete()
+    {
+        parent::afterDelete();
+        Tag::removeUnusedTags();
+    }
 
-	public function afterSave($insert, $changedAttributes)
-	{
-		parent::afterSave($insert, $changedAttributes);
-		Tag::removeUnusedTags();
-	}
+    public function afterSave($insert, $changedAttributes)
+    {
+        parent::afterSave($insert, $changedAttributes);
+        Tag::removeUnusedTags();
+    }
 
     /**
      * Save just uploaded file
@@ -229,18 +233,18 @@ class Mediafile extends ActiveRecord
         $this->file = UploadedFile::getInstance($this, 'file');
         //if a file with the same name already exist append a number
         $counter = 0;
-        do{
-            if($counter==0)
-                $filename = Inflector::slug($this->file->baseName).'.'. $this->file->extension;
-            else{
+        do {
+            if ($counter == 0)
+                $filename = Inflector::slug($this->file->baseName) . '.' . $this->file->extension;
+            else {
                 //if we don't want to rename we finish the call here
-                if($rename == false)
+                if ($rename == false)
                     return false;
-                $filename = Inflector::slug($this->file->baseName). $counter.'.'. $this->file->extension;
+                $filename = Inflector::slug($this->file->baseName) . $counter . '.' . $this->file->extension;
             }
             $url = "$structure/$filename";
             $counter++;
-        } while(self::findByUrl($url)); // checks for existing url in db
+        } while (self::findByUrl($url)); // checks for existing url in db
 
         // save original uploaded file
         $this->file->saveAs("$absolutePath/$filename");
@@ -250,6 +254,79 @@ class Mediafile extends ActiveRecord
         $this->url = $url;
 
         return $this->save();
+    }
+
+
+    public function importFile(array $routes, $url, $alt, $description, $rename = false)
+    {
+        $client = new Client();
+        try {
+            $response = $client->get($url);
+        } catch (\Exception $e) {
+            unset($e);
+            return false;
+        }
+
+        // exit if no ok;
+        if ($response->getStatusCode() != 200) {
+            return false;
+        }
+
+        $fileType = $response->getHeader('Content-Type');
+        $fileType = (is_array($fileType)) ? $fileType[0] : $fileType;
+        $fileType = strtolower($fileType);
+
+        // exit in invalid content type
+        if (!in_array($fileType, self::$imageFileTypes)) {
+            return false;
+        }
+
+        //extension from content-type
+        $typeParts = explode('/', $fileType);
+        $file_extension = strtolower(strtok($typeParts[1], '?'));
+        if ($file_extension == 'jpeg') {
+            $file_extension = 'jpg';
+        }
+
+        $path_parts = pathinfo($url);
+
+        $year = date('Y', time());
+        $month = date('m', time());
+        $structure = "$routes[baseUrl]/$routes[uploadPath]/$year/$month";
+        $basePath = Yii::getAlias($routes['basePath']);
+        $absolutePath = "$basePath/$structure";
+
+        // create actual directory structure "yyyy/mm"
+        if (!file_exists($absolutePath)) {
+            mkdir($absolutePath, 0777, true);
+        }
+        //if a file with the same name already exist append a number
+        $counter = 0;
+        do {
+            if ($counter == 0)
+                $filename = Inflector::slug($path_parts['filename']) . '.' . $file_extension;
+            else {
+                //if we don't want to rename we finish the call here
+                if ($rename == false)
+                    return false;
+                $filename = Inflector::slug($path_parts['filename']) . $counter . '.' . $file_extension;
+            }
+            $url = "$structure/$filename";
+            $counter++;
+        } while (self::findByUrl($url)); // checks for existing url in db
+
+        // save original uploaded file
+        $fileSize = file_put_contents("$absolutePath/$filename", $response->getBody());
+
+        $this->filename = $filename;
+        $this->type = $fileType;
+        $this->size = $fileSize;
+        $this->alt = $alt;
+        $this->description = $description;
+        $this->url = $url;
+
+        return $this->save();
+
     }
 
     /**
@@ -381,6 +458,7 @@ class Mediafile extends ActiveRecord
         }
         return "$baseUrl/images/file.png";
     }
+
     /**
      * @param $baseUrl
      * @return string default thumbnail for image
@@ -396,6 +474,7 @@ class Mediafile extends ActiveRecord
         $height = $size[1];
         return "$dirname/$filename-{$width}x{$height}.$extension";
     }
+
     /**
      * @return array thumbnails
      */
@@ -426,7 +505,7 @@ class Mediafile extends ActiveRecord
      * @param array $options html options
      * @return string Html image tag
      */
-    public function getThumbImage($alias, $options=[])
+    public function getThumbImage($alias, $options = [])
     {
         $url = $this->getThumbUrl($alias);
 
