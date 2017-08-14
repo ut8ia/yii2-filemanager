@@ -1,7 +1,6 @@
 <?php
 namespace ut8ia\filemanager\widgets;
 
-use Yii;
 use yii\widgets\InputWidget;
 use yii\web\JsExpression;
 use ut8ia\filemanager\assets\FileInputAsset;
